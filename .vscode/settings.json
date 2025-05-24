@@ -2,5 +2,6 @@
     "java.compile.nullAnalysis.mode": "disabled",
     "cSpell.words": [
         "Estudiante"
-    ]
+    ],
+    "java.configuration.updateBuildConfiguration": "automatic"
 }
