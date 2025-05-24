@@ -87,7 +87,7 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  // ================== PASO 3: Funciones async para CRUD ==================
+
 
   Future<void> cargarEstudiantesDesdeAPI() async {
     try {
