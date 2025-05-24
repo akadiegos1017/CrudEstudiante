@@ -17,14 +17,15 @@ public class EstudianteService {
     }
 
     public Optional<Estudiante> getById(Long id) {
-        return estudiantes.stream().filter(e -> e.getId() == id).findFirst();
+        return estudiantes.stream().filter(e -> e.getId() == id.intValue()).findFirst();
     }
 
-    public void add(Estudiante e) {
+    public Estudiante add(Estudiante e) {
         estudiantes.add(e);
+        return e;
     }
 
-    public boolean update(Estudiante modificado) {
+    public Estudiante update(Estudiante modificado) {
         Optional<Estudiante> opt = getById(Long.valueOf(modificado.getId()));
         if (opt.isPresent()) {
             Estudiante original = opt.get();
@@ -32,12 +33,12 @@ public class EstudianteService {
             original.setApellido(modificado.getApellido());
             original.setDocumento(modificado.getDocumento());
             original.setEmail(modificado.getEmail());
-            return true;
+            return original;
         }
-        return false;
+        return null; // si no encontró, podría lanzar excepción o retornar null
     }
 
     public boolean delete(Long id) {
-        return estudiantes.removeIf(e -> e.getId() == id);
+        return estudiantes.removeIf(e -> e.getId() == id.intValue());
     }
 }

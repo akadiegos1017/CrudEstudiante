@@ -47,9 +47,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Gestión Estudiantes',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-      ),
+      theme: ThemeData(primarySwatch: Colors.blue),
       home: HomeScreen(),
       debugShowCheckedModeBanner: false,
     );
@@ -66,7 +64,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   List<Estudiante> estudiantes = [];
 
-  static const String apiUrl = 'http://localhost:8080/estudiantes'; // <-- Cambia a tu URL real
+  static const String apiUrl =
+      'http://localhost:8080/estudiantes'; // <-- Cambia a tu URL real
 
   static const List<String> _titles = [
     'Lista de Estudiantes',
@@ -87,8 +86,6 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-
-
   Future<void> cargarEstudiantesDesdeAPI() async {
     try {
       final response = await http.get(Uri.parse(apiUrl));
@@ -106,25 +103,27 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> agregarEstudianteAPI(Estudiante e) async {
+  Future<Estudiante> agregarEstudianteAPI(Estudiante e) async {
     try {
       final response = await http.post(
         Uri.parse(apiUrl),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(e.toJson()),
       );
+
       if (response.statusCode == 201) {
-        // El backend retornó el estudiante creado con id asignado
         final nuevo = Estudiante.fromJson(jsonDecode(response.body));
+        await cargarEstudiantesDesdeAPI();
         setState(() {
-          estudiantes.add(nuevo);
-          _selectedIndex = 0; // Volver a la lista para ver el nuevo estudiante
+          _selectedIndex = 0;
         });
+        return nuevo;
       } else {
         throw Exception('Error al agregar estudiante');
       }
     } catch (e) {
       print('Error en agregarEstudianteAPI: $e');
+      rethrow; // relanza el error para manejarlo arriba si quieres
     }
   }
 
@@ -137,15 +136,10 @@ class _HomeScreenState extends State<HomeScreen> {
         body: jsonEncode(e.toJson()),
       );
       if (response.statusCode == 200) {
+        await cargarEstudiantesDesdeAPI();
         setState(() {
-          int index = estudiantes.indexWhere((est) => est.id == e.id);
-          if (index != -1) {
-            estudiantes[index] = e;
-            _selectedIndex = 0;
-          }
+          _selectedIndex = 0;
         });
-      } else {
-        throw Exception('Error al modificar estudiante');
       }
     } catch (e) {
       print('Error en modificarEstudianteAPI: $e');
@@ -157,21 +151,19 @@ class _HomeScreenState extends State<HomeScreen> {
       final url = '$apiUrl/$id';
       final response = await http.delete(Uri.parse(url));
       if (response.statusCode == 200) {
+        await cargarEstudiantesDesdeAPI();
         setState(() {
-          estudiantes.removeWhere((e) => e.id == id);
           _selectedIndex = 0;
         });
-      } else {
-        throw Exception('Error al eliminar estudiante');
       }
     } catch (e) {
       print('Error en eliminarEstudianteAPI: $e');
     }
   }
 
-  // ================== Métodos que llaman a las funciones API ==================
 
-  void agregarEstudiante(Estudiante e) async {
+
+  Future<void> agregarEstudiante(Estudiante e) async {
     await agregarEstudianteAPI(e);
   }
 
@@ -183,24 +175,26 @@ class _HomeScreenState extends State<HomeScreen> {
     await eliminarEstudianteAPI(id);
   }
 
-  // ==========================================================================
-
   @override
   Widget build(BuildContext context) {
     List<Widget> _widgetOptions = <Widget>[
       VerEstudiantes(estudiantes: estudiantes),
       AgregarEstudiante(
-          onAgregar: agregarEstudiante,
-          ultimoId: estudiantes.isNotEmpty ? estudiantes.last.id : 0),
+        onAgregar: agregarEstudiante,
+        ultimoId: estudiantes.isNotEmpty ? estudiantes.last.id : 0,
+      ),
       ModificarEstudiante(
-          estudiantes: estudiantes, onModificar: modificarEstudiante),
-      EliminarEstudiante(estudiantes: estudiantes, onEliminar: eliminarEstudiante),
+        estudiantes: estudiantes,
+        onModificar: modificarEstudiante,
+      ),
+      EliminarEstudiante(
+        estudiantes: estudiantes,
+        onEliminar: eliminarEstudiante,
+      ),
     ];
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_titles[_selectedIndex]),
-      ),
+      appBar: AppBar(title: Text(_titles[_selectedIndex])),
       body: _widgetOptions.elementAt(_selectedIndex),
       bottomNavigationBar: BottomNavigationBar(
         selectedItemColor: Colors.blueAccent,
@@ -209,7 +203,10 @@ class _HomeScreenState extends State<HomeScreen> {
         onTap: _onItemTapped,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.list), label: 'Ver'),
-          BottomNavigationBarItem(icon: Icon(Icons.person_add), label: 'Agregar'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person_add),
+            label: 'Agregar',
+          ),
           BottomNavigationBarItem(icon: Icon(Icons.edit), label: 'Modificar'),
           BottomNavigationBarItem(icon: Icon(Icons.delete), label: 'Eliminar'),
         ],
@@ -242,7 +239,7 @@ class VerEstudiantes extends StatelessWidget {
 }
 
 class AgregarEstudiante extends StatefulWidget {
-  final Function(Estudiante) onAgregar;
+  final Future<void> Function(Estudiante) onAgregar;
   final int ultimoId;
 
   const AgregarEstudiante({required this.onAgregar, required this.ultimoId});
@@ -258,7 +255,7 @@ class _AgregarEstudianteState extends State<AgregarEstudiante> {
   final _documentoCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
 
-  void _submit() {
+  Future<void> _submit() async {
     if (_formKey.currentState!.validate()) {
       final nuevo = Estudiante(
         id: widget.ultimoId + 1,
@@ -267,9 +264,20 @@ class _AgregarEstudianteState extends State<AgregarEstudiante> {
         documento: _documentoCtrl.text,
         email: _emailCtrl.text,
       );
-      widget.onAgregar(nuevo);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Estudiante agregado')));
-      _formKey.currentState!.reset();
+
+      try {
+        await widget.onAgregar(nuevo); // Espera que se agregue
+
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Estudiante agregado')));
+
+        _formKey.currentState!.reset();
+      } catch (e) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error al agregar estudiante')));
+      }
     }
   }
 
@@ -293,18 +301,23 @@ class _AgregarEstudianteState extends State<AgregarEstudiante> {
             TextFormField(
               controller: _nombreCtrl,
               decoration: InputDecoration(labelText: 'Nombre'),
-              validator: (val) => val == null || val.isEmpty ? 'Ingrese nombre' : null,
+              validator:
+                  (val) => val == null || val.isEmpty ? 'Ingrese nombre' : null,
             ),
             TextFormField(
               controller: _apellidoCtrl,
               decoration: InputDecoration(labelText: 'Apellido'),
-              validator: (val) => val == null || val.isEmpty ? 'Ingrese apellido' : null,
+              validator:
+                  (val) =>
+                      val == null || val.isEmpty ? 'Ingrese apellido' : null,
             ),
             TextFormField(
               controller: _documentoCtrl,
               decoration: InputDecoration(labelText: 'Número de Documento'),
               keyboardType: TextInputType.number,
-              validator: (val) => val == null || val.isEmpty ? 'Ingrese documento' : null,
+              validator:
+                  (val) =>
+                      val == null || val.isEmpty ? 'Ingrese documento' : null,
             ),
             TextFormField(
               controller: _emailCtrl,
@@ -318,7 +331,10 @@ class _AgregarEstudianteState extends State<AgregarEstudiante> {
               },
             ),
             SizedBox(height: 20),
-            ElevatedButton(onPressed: _submit, child: Text('Agregar Estudiante')),
+            ElevatedButton(
+              onPressed: _submit,
+              child: Text('Agregar Estudiante'),
+            ),
           ],
         ),
       ),
@@ -330,7 +346,10 @@ class ModificarEstudiante extends StatefulWidget {
   final List<Estudiante> estudiantes;
   final Function(Estudiante) onModificar;
 
-  const ModificarEstudiante({required this.estudiantes, required this.onModificar});
+  const ModificarEstudiante({
+    required this.estudiantes,
+    required this.onModificar,
+  });
 
   @override
   State<ModificarEstudiante> createState() => _ModificarEstudianteState();
@@ -354,7 +373,9 @@ class _ModificarEstudianteState extends State<ModificarEstudiante> {
 
   void _submit() {
     if (seleccionado == null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Seleccione un estudiante')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Seleccione un estudiante')));
       return;
     }
     if (_formKey.currentState!.validate()) {
@@ -366,7 +387,9 @@ class _ModificarEstudianteState extends State<ModificarEstudiante> {
         email: _emailCtrl.text,
       );
       widget.onModificar(modificado);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Estudiante modificado')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Estudiante modificado')));
       setState(() {
         seleccionado = null;
         _formKey.currentState!.reset();
@@ -391,12 +414,13 @@ class _ModificarEstudianteState extends State<ModificarEstudiante> {
           value: seleccionado,
           hint: Text('Seleccione un estudiante'),
           isExpanded: true,
-          items: widget.estudiantes.map((e) {
-            return DropdownMenuItem<Estudiante>(
-              value: e,
-              child: Text('${e.nombre} ${e.apellido}'),
-            );
-          }).toList(),
+          items:
+              widget.estudiantes.map((e) {
+                return DropdownMenuItem<Estudiante>(
+                  value: e,
+                  child: Text('${e.nombre} ${e.apellido}'),
+                );
+              }).toList(),
           onChanged: (val) {
             setState(() {
               seleccionado = val;
@@ -414,18 +438,32 @@ class _ModificarEstudianteState extends State<ModificarEstudiante> {
                   TextFormField(
                     controller: _nombreCtrl,
                     decoration: InputDecoration(labelText: 'Nombre'),
-                    validator: (val) => val == null || val.isEmpty ? 'Ingrese nombre' : null,
+                    validator:
+                        (val) =>
+                            val == null || val.isEmpty
+                                ? 'Ingrese nombre'
+                                : null,
                   ),
                   TextFormField(
                     controller: _apellidoCtrl,
                     decoration: InputDecoration(labelText: 'Apellido'),
-                    validator: (val) => val == null || val.isEmpty ? 'Ingrese apellido' : null,
+                    validator:
+                        (val) =>
+                            val == null || val.isEmpty
+                                ? 'Ingrese apellido'
+                                : null,
                   ),
                   TextFormField(
                     controller: _documentoCtrl,
-                    decoration: InputDecoration(labelText: 'Número de Documento'),
+                    decoration: InputDecoration(
+                      labelText: 'Número de Documento',
+                    ),
                     keyboardType: TextInputType.number,
-                    validator: (val) => val == null || val.isEmpty ? 'Ingrese documento' : null,
+                    validator:
+                        (val) =>
+                            val == null || val.isEmpty
+                                ? 'Ingrese documento'
+                                : null,
                   ),
                   TextFormField(
                     controller: _emailCtrl,
@@ -439,7 +477,10 @@ class _ModificarEstudianteState extends State<ModificarEstudiante> {
                     },
                   ),
                   SizedBox(height: 20),
-                  ElevatedButton(onPressed: _submit, child: Text('Modificar Estudiante')),
+                  ElevatedButton(
+                    onPressed: _submit,
+                    child: Text('Modificar Estudiante'),
+                  ),
                 ],
               ),
             ),
@@ -454,7 +495,10 @@ class EliminarEstudiante extends StatelessWidget {
   final List<Estudiante> estudiantes;
   final Function(int) onEliminar;
 
-  const EliminarEstudiante({required this.estudiantes, required this.onEliminar});
+  const EliminarEstudiante({
+    required this.estudiantes,
+    required this.onEliminar,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -473,21 +517,30 @@ class EliminarEstudiante extends StatelessWidget {
             onPressed: () {
               showDialog(
                 context: context,
-                builder: (_) => AlertDialog(
-                  title: Text('Confirmar eliminación'),
-                  content: Text('¿Eliminar a ${e.nombre} ${e.apellido}?'),
-                  actions: [
-                    TextButton(onPressed: () => Navigator.pop(context), child: Text('Cancelar')),
-                    TextButton(
-                      onPressed: () {
-                        onEliminar(e.id);
-                        Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Estudiante eliminado')));
-                      },
-                      child: Text('Eliminar', style: TextStyle(color: Colors.red)),
+                builder:
+                    (_) => AlertDialog(
+                      title: Text('Confirmar eliminación'),
+                      content: Text('¿Eliminar a ${e.nombre} ${e.apellido}?'),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: Text('Cancelar'),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            onEliminar(e.id);
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Estudiante eliminado')),
+                            );
+                          },
+                          child: Text(
+                            'Eliminar',
+                            style: TextStyle(color: Colors.red),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
               );
             },
           ),
