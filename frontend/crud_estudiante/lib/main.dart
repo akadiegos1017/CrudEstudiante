@@ -66,7 +66,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   List<Estudiante> estudiantes = [];
 
-  static const String apiUrl = 'http://tu-backend-api.com/api/estudiantes'; // <-- Cambia a tu URL real
+  static const String apiUrl = 'http://localhost:8080/estudiantes'; // <-- Cambia a tu URL real
 
   static const List<String> _titles = [
     'Lista de Estudiantes',
