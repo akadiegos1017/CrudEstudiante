@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 void main() {
   runApp(MyApp());
@@ -18,6 +20,26 @@ class Estudiante {
     required this.documento,
     required this.email,
   });
+
+  factory Estudiante.fromJson(Map<String, dynamic> json) {
+    return Estudiante(
+      id: json['id'],
+      nombre: json['nombre'],
+      apellido: json['apellido'],
+      documento: json['documento'],
+      email: json['email'],
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'nombre': nombre,
+      'apellido': apellido,
+      'documento': documento,
+      'email': email,
+    };
+  }
 }
 
 class MyApp extends StatelessWidget {
@@ -42,10 +64,9 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
 
-  List<Estudiante> estudiantes = [
-    Estudiante(id: 1, nombre: 'Ana', apellido: 'Pérez', documento: '12345678', email: 'ana@mail.com'),
-    Estudiante(id: 2, nombre: 'Luis', apellido: 'García', documento: '87654321', email: 'luis@mail.com'),
-  ];
+  List<Estudiante> estudiantes = [];
+
+  static const String apiUrl = 'http://tu-backend-api.com/api/estudiantes'; // <-- Cambia a tu URL real
 
   static const List<String> _titles = [
     'Lista de Estudiantes',
@@ -54,39 +75,125 @@ class _HomeScreenState extends State<HomeScreen> {
     'Eliminar Estudiante',
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    cargarEstudiantesDesdeAPI();
+  }
+
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
     });
   }
 
-  void agregarEstudiante(Estudiante e) {
-    setState(() {
-      estudiantes.add(e);
-    });
-  }
+  // ================== PASO 3: Funciones async para CRUD ==================
 
-  void modificarEstudiante(Estudiante modificado) {
-    setState(() {
-      int index = estudiantes.indexWhere((e) => e.id == modificado.id);
-      if (index != -1) {
-        estudiantes[index] = modificado;
+  Future<void> cargarEstudiantesDesdeAPI() async {
+    try {
+      final response = await http.get(Uri.parse(apiUrl));
+      if (response.statusCode == 200) {
+        List<dynamic> data = jsonDecode(response.body);
+        setState(() {
+          estudiantes = data.map((json) => Estudiante.fromJson(json)).toList();
+        });
+      } else {
+        throw Exception('Error al cargar estudiantes');
       }
-    });
+    } catch (e) {
+      // Manejar error, por ejemplo mostrar un SnackBar o print en consola
+      print('Error en cargarEstudiantesDesdeAPI: $e');
+    }
   }
 
-  void eliminarEstudiante(int id) {
-    setState(() {
-      estudiantes.removeWhere((e) => e.id == id);
-    });
+  Future<void> agregarEstudianteAPI(Estudiante e) async {
+    try {
+      final response = await http.post(
+        Uri.parse(apiUrl),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(e.toJson()),
+      );
+      if (response.statusCode == 201) {
+        // El backend retornó el estudiante creado con id asignado
+        final nuevo = Estudiante.fromJson(jsonDecode(response.body));
+        setState(() {
+          estudiantes.add(nuevo);
+          _selectedIndex = 0; // Volver a la lista para ver el nuevo estudiante
+        });
+      } else {
+        throw Exception('Error al agregar estudiante');
+      }
+    } catch (e) {
+      print('Error en agregarEstudianteAPI: $e');
+    }
   }
+
+  Future<void> modificarEstudianteAPI(Estudiante e) async {
+    try {
+      final url = '$apiUrl/${e.id}';
+      final response = await http.put(
+        Uri.parse(url),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(e.toJson()),
+      );
+      if (response.statusCode == 200) {
+        setState(() {
+          int index = estudiantes.indexWhere((est) => est.id == e.id);
+          if (index != -1) {
+            estudiantes[index] = e;
+            _selectedIndex = 0;
+          }
+        });
+      } else {
+        throw Exception('Error al modificar estudiante');
+      }
+    } catch (e) {
+      print('Error en modificarEstudianteAPI: $e');
+    }
+  }
+
+  Future<void> eliminarEstudianteAPI(int id) async {
+    try {
+      final url = '$apiUrl/$id';
+      final response = await http.delete(Uri.parse(url));
+      if (response.statusCode == 200) {
+        setState(() {
+          estudiantes.removeWhere((e) => e.id == id);
+          _selectedIndex = 0;
+        });
+      } else {
+        throw Exception('Error al eliminar estudiante');
+      }
+    } catch (e) {
+      print('Error en eliminarEstudianteAPI: $e');
+    }
+  }
+
+  // ================== Métodos que llaman a las funciones API ==================
+
+  void agregarEstudiante(Estudiante e) async {
+    await agregarEstudianteAPI(e);
+  }
+
+  void modificarEstudiante(Estudiante modificado) async {
+    await modificarEstudianteAPI(modificado);
+  }
+
+  void eliminarEstudiante(int id) async {
+    await eliminarEstudianteAPI(id);
+  }
+
+  // ==========================================================================
 
   @override
   Widget build(BuildContext context) {
     List<Widget> _widgetOptions = <Widget>[
       VerEstudiantes(estudiantes: estudiantes),
-      AgregarEstudiante(onAgregar: agregarEstudiante, ultimoId: estudiantes.isNotEmpty ? estudiantes.last.id : 0),
-      ModificarEstudiante(estudiantes: estudiantes, onModificar: modificarEstudiante),
+      AgregarEstudiante(
+          onAgregar: agregarEstudiante,
+          ultimoId: estudiantes.isNotEmpty ? estudiantes.last.id : 0),
+      ModificarEstudiante(
+          estudiantes: estudiantes, onModificar: modificarEstudiante),
       EliminarEstudiante(estudiantes: estudiantes, onEliminar: eliminarEstudiante),
     ];
 
